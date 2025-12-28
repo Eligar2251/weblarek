@@ -233,4 +233,4 @@ export type TBuyerErrors = TValidationErrors<IBuyer>;
 
 Методы:
 `getProducts(): Promise<IProduct[]>` — выполняет GET-запрос к эндпоинту /product/ и возвращает массив товаров.
-`createOrder(order: IOrderRequest): Promise<IOrderResponse>` — выполняет POST-запрос к эндпоинту /order/ и передаёт данные заказа, полученные в параметрах метода.
+`createOrder(order: IOrderRequest): Promise<IOrderResponse>` — выполняет POST-запрос к эндпоинту /order/ и передаёт данные заказа, полученные в параметрах метода

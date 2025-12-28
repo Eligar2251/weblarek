@@ -29,13 +29,13 @@ export interface IProductsResponse {
 }
 
 export interface IOrderRequest extends IBuyer {
-	items: Array<IProduct['id']>;
+	items: string[];
 	total: number;
 }
 
 export interface IOrderResponse {
-	payment: TPayment;
 	items: string[];
+	total: number;
 }
 
 export type TValidationErrors<T> = Partial<Record<keyof T, string>>;

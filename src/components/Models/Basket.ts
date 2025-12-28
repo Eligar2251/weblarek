@@ -4,7 +4,7 @@ export class Basket {
 	private items: IProduct[] = [];
 
 	getItems(): IProduct[] {
-		return [...this.items];
+		return this.items;
 	}
 
 	addItem(product: IProduct): void {

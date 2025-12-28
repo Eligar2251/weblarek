@@ -1,24 +1,31 @@
 import type { IBuyer, TBuyerErrors, TPayment } from '../../types';
 
 export class Buyer {
-	private data: Partial<IBuyer> = {};
+	private readonly initialData: IBuyer = {
+		payment: 'card',
+		address: '',
+		email: '',
+		phone: '',
+	};
+
+	private data: IBuyer = { ...this.initialData };
 
 	setData(data: Partial<IBuyer>): void {
 		this.data = { ...this.data, ...data };
 	}
 
-	getData(): Partial<IBuyer> {
+	getData(): IBuyer {
 		return { ...this.data };
 	}
 
 	clear(): void {
-		this.data = {};
+		this.data = { ...this.initialData };
 	}
 
 	validate(): TBuyerErrors {
 		const errors: TBuyerErrors = {};
 
-		const { payment, address = '', email = '', phone = '' } = this.data;
+		const { payment, address, email, phone } = this.data;
 
 		const isValidPayment = (value: unknown): value is TPayment =>
 			value === 'card' || value === 'cash';
