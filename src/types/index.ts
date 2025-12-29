@@ -34,7 +34,7 @@ export interface IOrderRequest extends IBuyer {
 }
 
 export interface IOrderResponse {
-	items: string[];
+	id: string;
 	total: number;
 }
 

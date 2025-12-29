@@ -1,14 +1,14 @@
 import type { IBuyer, TBuyerErrors, TPayment } from '../../types';
 
 export class Buyer {
-	private readonly initialData: IBuyer = {
+	private initialData: IBuyer = {
 		payment: 'card',
 		address: '',
 		email: '',
 		phone: '',
 	};
 
-	private data: IBuyer = { ...this.initialData };
+	private data: IBuyer = this.initialData;
 
 	setData(data: Partial<IBuyer>): void {
 		this.data = { ...this.data, ...data };
