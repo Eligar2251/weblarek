@@ -157,16 +157,17 @@ export interface IOrderRequest extends IBuyer {
 IOrderResponse
 Формат ответа сервера при создании заказа:
 export interface IOrderResponse {
-  payment: TPayment;
-  items: string[];
+  id: string;
+  total: number;
 }
 
 TValidationErrors и TBuyerErrors
 Тип ошибок валидации:
-export type TValidationErrors<T> = Partial<Record<keyof T, string>>;
-export type TBuyerErrors = TValidationErrors<IBuyer>;
+`export type TValidationErrors<T> = Partial<Record<keyof T, string>>;`
+`export type TBuyerErrors = TValidationErrors<IBuyer>;`
 
 ## Модели данных
+
 Модели данных отвечают только за хранение и управление состоянием приложения.
 Модели не зависят от отображения (View) и не выполняют запросы к API.
 
@@ -213,15 +214,18 @@ export type TBuyerErrors = TValidationErrors<IBuyer>;
 Конструктор не принимает параметров.
 
 Поля:
-`data: Partial<IBuyer>` — объект с данными покупателя, который может заполняться по частям.
+`data: IBuyer` — текущие данные покупателя
+`paymentSelected: boolean` — выбран ли способ оплаты
 
 Методы:
-`setData(data: Partial<IBuyer>): void` — сохраняет данные покупателя. Допускается обновление одного поля без потери ранее сохранённых значений.
-`getData(): Partial<IBuyer>` — возвращает текущие данные покупателя.
-`clear(): void` — очищает данные покупателя.
-`validate(): TBuyerErrors` — выполняет проверку валидности полей и возвращает объект ошибок, где ключи соответствуют полям покупателя, а значения — текст ошибки. Поле валидно, если оно непустое. Для payment допустимы значения 'card' и 'cash'.
+`setData(data: Partial<IBuyer>): void` — сохраняет данные покупателя, при передаче `payment` помечает способ оплаты как выбранный
+`getData(): IBuyer` — возвращает текущие данные покупателя
+`getPayment(): TPayment | null` — возвращает выбранный способ оплаты или `null`, если пользователь ещё не выбирал оплату
+`clear(): void` — очищает данные покупателя и сбрасывает факт выбора оплаты
+`validate(): TBuyerErrors` — проверяет валидность полей; `payment` валиден только если `paymentSelected === true`
 
-Слой коммуникации
+## Коммуникации
+
 Слой коммуникации отвечает за получение данных с сервера и отправку данных на сервер.
 Запросы к API не интегрируются напрямую в модели данных.
 
@@ -234,3 +238,267 @@ export type TBuyerErrors = TValidationErrors<IBuyer>;
 Методы:
 `getProducts(): Promise<IProduct[]>` — выполняет GET-запрос к эндпоинту /product/ и возвращает массив товаров.
 `createOrder(order: IOrderRequest): Promise<IOrderResponse>` — выполняет POST-запрос к эндпоинту /order/ и передаёт данные заказа, полученные в параметрах метода
+
+
+## Представление
+
+Слой View отвечает за создание и обновление DOM-элементов интерфейса. Компоненты представления:
+- не хранят состояние приложения (данные хранятся в Model),
+- не выполняют запросы к API,
+- не принимают решений по логике (что показывать/когда показывать решает Presenter),
+- генерируют события пользовательских действий через брокер событий IEvents.
+
+## Базовые утилиты DOM
+ensureElement и cloneTemplate
+Используются всеми компонентами View для поиска элементов и клонирования шаблонов.
+
+`ensureElement<T extends Element>(selector: string, parent?: ParentNode): T` — возвращает найденный элемент или выбрасывает ошибку.
+`ensureAllElements<T extends Element>(selector: string, parent: ParentNode): T[]` — возвращает массив элементов по селектору.
+`cloneTemplate<T extends HTMLElement>(id: string): T` — клонирует первый дочерний элемент из template#id.
+
+## Базовый класс карточки
+
+### Класс CardView
+Назначение: базовый класс для карточек товара. Реализует общий функционал отображения title/price/category/image, общий root-элемент карточки.
+
+Конструктор:
+`constructor(root: HTMLElement)` — принимает корневой DOM-элемент карточки (обычно клонированный из <template>).
+
+Поля:
+`root: HTMLElement` — корневой элемент карточки.
+`titleEl: HTMLElement` — элемент заголовка.
+`priceEl: HTMLElement` — элемент цены.
+`categoryEl: HTMLElement | null` — элемент категории (если присутствует в шаблоне).
+`imageEl: HTMLImageElement | null` — элемент изображения (если присутствует в шаблоне).
+
+Методы:
+`render(): HTMLElement` — возвращает root.
+`setId(id: string): void` — записывает идентификатор товара в data-id корня.
+`setTitle(value: string): void` — устанавливает текст заголовка.
+`setPrice(value: number | null): void` — устанавливает цену (форматирование выполняется через formatSynapses).
+`setCategory(value: string): void` — устанавливает категорию и модификатор класса на .card__category через categoryMap.
+`setImage(src: string, alt?: string): void` — устанавливает картинку.
+
+## Карточки товаров
+
+### Класс CatalogCardView extends CardView
+Назначение: карточка товара в каталоге (на главной странице). По клику генерирует событие выбора карточки для просмотра.
+
+Конструктор:
+`constructor(events: IEvents)` — принимает брокер событий, клонирует шаблон card-catalog, устанавливает обработчик клика.
+События:
+
+`ViewEvents.CardSelect` — эмитится при клике на карточку, payload: { id: string }.
+
+### Класс PreviewCardView extends CardView
+Назначение: карточка товара для предпросмотра (подробная информация). Содержит описание и кнопку действия (купить/удалить/недоступно).
+
+Конструктор:
+`constructor(events: IEvents)` — принимает брокер событий, клонирует шаблон card-preview, настраивает кнопку действия.
+
+Поля:
+`textEl: HTMLElement` — блок описания товара.
+`actionButton: HTMLButtonElement` — кнопка действия.
+
+Методы:
+`setDescription(value: string): void` — устанавливает описание.
+`setButton(text: string, disabled: boolean): void` — меняет текст и disabled-состояние кнопки.
+
+События:
+`ViewEvents.CardAction` — эмитится при клике по кнопке действия, payload: { id: string }.
+
+### Класс BasketCardView extends CardView
+Назначение: строка товара в корзине (элемент списка). Содержит порядковый номер и кнопку удаления.
+
+Конструктор:
+`constructor(events: IEvents)` — принимает брокер событий, клонирует шаблон card-basket, настраивает кнопку удаления.
+
+Поля:
+`indexEl: HTMLElement` — элемент номера товара в списке.
+`deleteButton: HTMLButtonElement` — кнопка удаления.
+
+Методы:
+`setIndex(value: number): void` — устанавливает порядковый номер.
+
+События:
+`ViewEvents.BasketItemRemove` — эмитится при удалении позиции, payload: { id: string }.
+
+## Компоненты страницы
+
+### Класс HeaderView
+Назначение: управление шапкой сайта (кнопка корзины и счётчик).
+
+Конструктор:
+`constructor(root: HTMLElement, events: IEvents)`
+
+Поля:
+`basketButton: HTMLButtonElement` — кнопка корзины.
+`basketCounter: HTMLElement` — счётчик товаров.
+
+Методы:
+`render(): HTMLElement`
+`setCounter(value: number): void` — обновляет число на счётчике.
+
+События:
+`ViewEvents.BasketOpen` — открытие корзины.
+
+### Класс GalleryView
+Назначение: контейнер каталога на главной странице.
+
+Конструктор:
+`constructor(container: HTMLElement)`
+
+Методы:
+`render(): HTMLElement`
+`setItems(items: HTMLElement[]): void` — заменяет содержимое каталога набором карточек.
+
+### Класс BasketView
+Назначение: отображение корзины: список позиций, сумма, кнопка “Оформить”.
+
+Конструктор:
+`constructor(events: IEvents)` — клонирует шаблон basket, настраивает кнопку “Оформить”.
+
+Поля:
+`listEl: HTMLUListElement` — список товаров.
+`checkoutButton: HTMLButtonElement` — кнопка оформления.
+`totalEl: HTMLElement` — элемент суммы.
+
+Методы:
+`render(): HTMLElement`
+`setItems(items: HTMLElement[]): void` — заменяет содержимое списка.
+`setTotal(value: number): void` — устанавливает общую сумму.
+`setCheckoutEnabled(enabled: boolean): void` — включает/выключает кнопку оформления.
+
+События:
+`ViewEvents.OrderOpen` — открытие формы оформления (шаг 1).
+
+### Класс ModalView
+Назначение: управление модальным окном (показ/скрытие и контент). Не имеет наследников.
+
+Конструктор:
+`constructor(root: HTMLElement, events: IEvents)` — настраивает закрытие по клику на оверлей и по крестику.
+
+Поля:
+`container: HTMLElement` — контейнер модалки.
+`closeButton: HTMLButtonElement` — кнопка закрытия.
+`content: HTMLElement` — блок для динамического контента.
+
+Методы:
+`render(): HTMLElement`
+`open(content: HTMLElement): void` — показывает модалку, добавляет класс modal_active.
+`close(): void` — скрывает модалку и очищает контент.
+`setContent(content: HTMLElement): void` — заменяет контент.
+
+События:
+`ViewEvents.ModalClose` — закрытие модального окна.
+
+### Класс SuccessView
+Назначение: экран успешной оплаты.
+
+Конструктор:
+`constructor(events: IEvents)` — клонирует шаблон success, настраивает кнопку закрытия.
+
+Поля:
+`descriptionEl: HTMLElement` — текст с итоговой суммой.
+`closeButton: HTMLButtonElement` — кнопка закрытия.
+
+Методы:
+`render(): HTMLElement`
+`setTotal(total: number): void` — устанавливает текст с суммой.
+
+События:
+`ViewEvents.SuccessClose` — закрытие экрана успеха.
+
+## Формы
+В приложении используются две формы, объединённые общим базовым классом FormView. Формы не читают данные из моделей напрямую и не валидируют модель — они только эмитят события изменения/отправки.
+
+### Класс FormView
+Назначение: базовый класс формы. Подписывается на input и эмитит изменения данных, хранит ссылку на кнопку submit и блок ошибок.
+
+Конструктор:
+`constructor(form: HTMLFormElement, events: IEvents)`
+
+Поля:
+`form: HTMLFormElement` — корень формы.
+`submitButton: HTMLButtonElement` — submit-кнопка.
+`errorsEl: HTMLElement` — контейнер ошибок.
+`events: IEvents` — брокер событий.
+
+Методы:
+`render(): HTMLFormElement`
+`setErrors(text: string): void`
+`setSubmitEnabled(enabled: boolean): void`
+`reset(): void` — сбрасывает поля формы и ошибки.
+
+События:
+`ViewEvents.FormChange` — эмитится при вводе в поля формы, payload: { form: string; name: string; value: string }.
+
+### Класс OrderFormView extends FormView
+Назначение: форма оформления заказа (шаг 1): выбор оплаты и адрес.
+
+Конструктор:
+`constructor(events: IEvents)` — клонирует шаблон order, настраивает клики по кнопкам оплаты и submit.
+
+Поля:
+`paymentButtons: HTMLButtonElement[]` — кнопки оплаты.
+`addressInput: HTMLInputElement` — поле адреса.
+
+Методы:
+`setPayment(method: 'card' | 'cash' | null): void` — подсвечивает выбранный метод через button_alt-active.
+`setAddress(value: string): void`
+
+События:
+`ViewEvents.OrderPaymentSelect` — выбор оплаты, payload: { method: string }
+`ViewEvents.OrderSubmit` — отправка шага 1 (переход к шагу 2)
+
+### Класс ContactsFormView extends FormView
+Назначение: форма контактов (шаг 2): email и телефон.
+
+Конструктор:
+`constructor(events: IEvents)` — клонирует шаблон contacts, настраивает submit.
+
+Поля:
+`emailInput: HTMLInputElement`
+`phoneInput: HTMLInputElement`
+
+Методы:
+`setEmail(value: string): void`
+`setPhone(value: string): void`
+
+События:
+`ViewEvents.ContactsSubmit` — отправка шага 2 (оплата и создание заказа)
+
+## События
+События объявлены в src/utils/modelEvents.ts:
+
+- ModelEvents.CatalogChanged — изменён каталог товаров.
+- ModelEvents.PreviewChanged — изменён выбранный товар для предпросмотра.
+- ModelEvents.BasketChanged — изменено содержимое корзины.
+- ModelEvents.BuyerChanged — изменены данные покупателя.
+- События представления
+- События объявлены в src/utils/events.ts:
+
+- ViewEvents.CardSelect — выбор товара в каталоге.
+- ViewEvents.CardAction — действие в предпросмотре (купить/удалить).
+- ViewEvents.BasketOpen — открытие корзины.
+- ViewEvents.BasketItemRemove — удаление товара из корзины.
+- ViewEvents.OrderOpen — открытие оформления (шаг 1).
+- ViewEvents.OrderPaymentSelect — выбор способа оплаты.
+- ViewEvents.FormChange — изменение полей форм.
+- ViewEvents.OrderSubmit — подтверждение шага 1.
+- ViewEvents.ContactsSubmit — подтверждение шага 2 (оплата).
+- ViewEvents.SuccessClose — закрытие экрана успеха.
+- ViewEvents.ModalClose — закрытие модального окна.
+
+## Презентер
+Презентер реализован в src/main.ts и содержит обработчики событий от Model и View. Он:
+
+- получает данные из API (через LarekApi) и сохраняет их в модели;
+- обрабатывает события моделей и обновляет View;
+- обрабатывает события View и вызывает методы моделей;
+- формирует объект IOrderRequest и отправляет заказ на сервер;
+- после успешной оплаты очищает модели корзины и покупателя.
+
+Важно: презентер не хранит данные предметной области (товары, корзину, покупателя) — все данные хранятся в моделях. Рендер представлений выполняется:
+- при событиях изменения моделей;
+- при событиях открытия модального окна.

@@ -1,4 +1,6 @@
 import type { IBuyer, TBuyerErrors, TPayment } from '../../types';
+import { events } from '../base/Events';
+import { ModelEvents } from '../../utils/modelEvents';
 
 export class Buyer {
 	private data: IBuyer = {
@@ -8,8 +10,15 @@ export class Buyer {
 		phone: '',
 	};
 
+	private paymentSelected = false;
+
 	setData(data: Partial<IBuyer>): void {
+		if (data.payment !== undefined) {
+			this.paymentSelected = true;
+		}
+
 		this.data = { ...this.data, ...data };
+		events.emit(ModelEvents.BuyerChanged);
 	}
 
 	getData(): IBuyer {
@@ -23,30 +32,29 @@ export class Buyer {
 			email: '',
 			phone: '',
 		};
+		this.paymentSelected = false;
+		events.emit(ModelEvents.BuyerChanged);
+	}
+
+	getPayment(): TPayment | null {
+		return this.paymentSelected ? this.data.payment : null;
 	}
 
 	validate(): TBuyerErrors {
 		const errors: TBuyerErrors = {};
+		const { address, email, phone } = this.data;
 
-		const { payment, address, email, phone } = this.data;
-
-		const isValidPayment = (value: unknown): value is TPayment =>
-			value === 'card' || value === 'cash';
-
-		if (!isValidPayment(payment)) {
-			errors.payment = 'Не выбран вид оплаты';
+		if (!this.paymentSelected) {
+			errors.payment = 'Необходимо выбрать способ оплаты';
 		}
-
 		if (!address.trim()) {
-			errors.address = 'Укажите адрес доставки';
+			errors.address = 'Необходимо указать адрес';
 		}
-
 		if (!email.trim()) {
-			errors.email = 'Укажите email';
+			errors.email = 'Необходимо указать email';
 		}
-
 		if (!phone.trim()) {
-			errors.phone = 'Укажите телефон';
+			errors.phone = 'Необходимо указать телефон';
 		}
 
 		return errors;
