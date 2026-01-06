@@ -49,7 +49,9 @@ const headerView = new HeaderView(headerRoot, events);
 const galleryView = new GalleryView(galleryRoot);
 const modalView = new ModalView(modalRoot, events);
 
-const previewView = new PreviewCardView(events);
+const previewView = new PreviewCardView((id) => {
+	events.emit(ViewEvents.CardAction, { id });
+});
 const basketView = new BasketView(events);
 const orderFormView = new OrderFormView(events);
 const contactsFormView = new ContactsFormView(events);
@@ -129,7 +131,9 @@ function renderCatalog(): void {
 	const items = catalog.getItems();
 
 	const cards = items.map((p) => {
-		const card = new CatalogCardView(events);
+		const card = new CatalogCardView((id) => {
+			events.emit(ViewEvents.CardSelect, { id });
+		});
 		card.setId(p.id);
 		card.setTitle(p.title);
 		card.setCategory(p.category);
@@ -171,7 +175,9 @@ function renderBasket(): void {
 	}
 
 	const rows = items.map((p, index) => {
-		const row = new BasketCardView(events);
+		const row = new BasketCardView((id) => {
+			events.emit(ViewEvents.BasketItemRemove, { id });
+		});
 		row.setId(p.id);
 		row.setIndex(index + 1);
 		row.setTitle(p.title);
